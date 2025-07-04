@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(240, 10%, 3.9%);
+  --muted: hsl(240, 4.8%, 95.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(240, 10%, 3.9%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(240, 10%, 3.9%);
+  --border: hsl(240, 5.9%, 90%);
+  --input: hsl(240, 5.9%, 90%);
+  --primary: hsl(158, 64%, 52%);
+  --primary-foreground: hsl(210, 100%, 99%);
+  --secondary: hsl(240, 4.8%, 95.9%);
+  --secondary-foreground: hsl(240, 5.9%, 10%);
+  --accent: hsl(240, 4.8%, 95.9%);
+  --accent-foreground: hsl(240, 5.9%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 5%, 64.9%);
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: hsl(222, 84%, 5%);
+  --foreground: hsl(210, 40%, 98%);
+  --muted: hsl(217, 32%, 17%);
+  --muted-foreground: hsl(215, 20%, 65%);
+  --popover: hsl(222, 84%, 5%);
+  --popover-foreground: hsl(210, 40%, 98%);
+  --card: hsl(222, 84%, 5%);
+  --card-foreground: hsl(210, 40%, 98%);
+  --border: hsl(217, 32%, 17%);
+  --input: hsl(217, 32%, 17%);
+  --primary: hsl(158, 64%, 52%);
+  --primary-foreground: hsl(210, 100%, 99%);
+  --secondary: hsl(217, 32%, 17%);
+  --secondary-foreground: hsl(210, 40%, 98%);
+  --accent: hsl(217, 32%, 17%);
+  --accent-foreground: hsl(210, 40%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 85.7%, 97.3%);
+  --ring: hsl(217, 32%, 17%);
+}
+
+/* Custom dark theme colors for WhatsApp SaaS */
+.dark {
+  --background: hsl(222, 84%, 5%);
+  --foreground: hsl(210, 40%, 98%);
+  --surface-dark: hsl(215, 25%, 12%);
+  --surface-lighter: hsl(215, 16%, 17%);
+  --surface-lightest: hsl(215, 13%, 24%);
+  --primary: hsl(158, 64%, 52%);
+  --primary-dark: hsl(158, 64%, 42%);
+  --accent: hsl(158, 64%, 72%);
+  --border: hsl(215, 16%, 17%);
+  --input: hsl(215, 16%, 17%);
+}
+
+/* --- RESET GLOBAL SUGERIDO --- */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: auto;
+  min-height: auto;
+}
+
+#main-content, .content, .page, .container {
+  min-height: auto !important;
+  height: auto !important;
+}
+
+footer {
+  margin-top: 0 !important;
+}
+  --ring: hsl(158, 64%, 52%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .sidebar-nav-item {
+    @apply flex items-center space-x-3 px-4 py-3 text-gray-300 hover:bg-gray-700 hover:text-white rounded-lg transition-colors cursor-pointer;
+  }
+  
+  .sidebar-nav-item.active {
+    @apply bg-primary text-white;
+  }
+  
+  .stats-card {
+    @apply bg-gray-800 p-6 rounded-xl border border-gray-700;
+  }
+  
+  .surface-dark {
+    @apply bg-gray-800 border-gray-700;
+  }
+  
+  .surface-lighter {
+    @apply bg-gray-700;
+  }
+  
+  .btn-primary {
+    @apply bg-primary hover:bg-primary text-white font-medium px-4 py-2 rounded-lg transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-700 hover:bg-gray-600 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+  }
+}
