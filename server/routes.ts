@@ -1,8 +1,9 @@
-import { Express, Request, Response } from "express";
-import { Server } from "http";
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { insertContactSchema, insertAutomationSchema, insertConversationFlowSchema } from "@shared/schema";
-import { realWhatsappManager } from "./whatsapp-real";
+import { insertContactSchema, insertAutomationSchema, insertBroadcastSchema, insertConversationFlowSchema } from "@shared/schema";
+import { realWhatsappManager, RealWhatsAppMessage, RealWhatsAppChat } from "./whatsapp-real";
 import { simpleWhatsappManager } from "./whatsapp-simple";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -698,6 +699,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to delete automation" });
+    }
+  });
+
+  // Broadcasts routes
+  app.get("/api/broadcasts", async (req, res) => {
+    try {
+      const broadcasts = await storage.getBroadcasts();
+      res.json(broadcasts);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch broadcasts" });
+    }
+  });
+
+  app.post("/api/broadcasts", async (req, res) => {
+    try {
+      console.log('📤 Dados recebidos para criar broadcast:', req.body);
+      const broadcastData = insertBroadcastSchema.parse(req.body);
+      console.log('✅ Dados validados com sucesso:', broadcastData);
+      const newBroadcast = await storage.createBroadcast(broadcastData);
+      console.log('✅ Broadcast criado:', newBroadcast);
+      broadcast({ type: 'broadcast_created', data: newBroadcast });
+      res.json(newBroadcast);
+    } catch (error) {
+      console.error('❌ Erro ao criar broadcast:', error);
+      if (error instanceof Error) {
+        res.status(400).json({ 
+          error: "Dados inválidos para o broadcast",
+          details: error.message,
+          data: req.body
+        });
+      } else {
+        res.status(400).json({ error: "Invalid broadcast data" });
+      }
+    }
+  });
+
+  app.put("/api/broadcasts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updatedBroadcast = await storage.updateBroadcast(id, req.body);
+      broadcast({ type: 'broadcast_updated', data: updatedBroadcast });
+      res.json(updatedBroadcast);
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update broadcast" });
+    }
+  });
+
+  app.delete("/api/broadcasts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteBroadcast(id);
+      broadcast({ type: 'broadcast_deleted', data: { id } });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to delete broadcast" });
+    }
+  });
+
+  // Execute broadcast campaign
+  app.post("/api/broadcasts/:id/execute", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const broadcastCampaign = await storage.getBroadcast(id);
+      
+      if (!broadcastCampaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+
+      if (broadcastCampaign.status !== "draft") {
+        return res.status(400).json({ error: "Campaign is not in draft status" });
+      }
+
+      console.log(`🚀 Starting broadcast campaign: ${broadcastCampaign.name}`);
+      console.log(`📋 Target tags: ${broadcastCampaign.targetTags.join(", ")}`);
+      console.log(`👥 Total contacts: ${broadcastCampaign.total}`);
+      console.log(`⏱️ Interval: ${broadcastCampaign.interval} seconds`);
+
+      // Update campaign status to active
+      const updatedCampaign = await storage.updateBroadcast(id, { 
+        status: "active" 
+      });
+
+      // Get saved contacts that match the target tags
+      const savedContacts = realWhatsappManager.getSavedContacts();
+      const targetContacts = savedContacts.filter(contact => 
+        broadcastCampaign.targetTags.some(tag => {
+          const contactCategory = contact.notes?.trim().toLowerCase() || "";
+          return contactCategory === tag.toLowerCase();
+        })
+      );
+
+      console.log(`📱 Found ${targetContacts.length} matching contacts`);
+
+      // Start sending messages with interval
+      let sentCount = 0;
+      const intervalMs = (broadcastCampaign.interval || 5) * 1000;
+      
+      const sendMessage = async () => {
+        if (sentCount >= targetContacts.length) {
+          // Campaign completed
+          await storage.updateBroadcast(id, { 
+            status: "completed",
+            sent: sentCount 
+          });
+          console.log(`✅ Campaign ${broadcastCampaign.name} completed. Sent: ${sentCount}/${targetContacts.length}`);
+          broadcast({ type: 'broadcast_completed', data: { id, sent: sentCount, total: targetContacts.length } });
+          return;
+        }
+
+        const contact = targetContacts[sentCount];
+        const currentIndex = sentCount + 1; // For display purposes
+        
+        try {
+          console.log(`📤 Sending message to ${contact.name || contact.id} (${currentIndex}/${targetContacts.length}) - waiting ${broadcastCampaign.interval}s before next...`);
+          
+          const success = await realWhatsappManager.sendRealMessage(contact.id, broadcastCampaign.message);
+          if (success) {
+            sentCount++;
+            console.log(`✅ Message sent to ${contact.name || contact.id} (${sentCount}/${targetContacts.length})`);
+            
+            // Update progress
+            await storage.updateBroadcast(id, { sent: sentCount });
+            broadcast({ type: 'broadcast_progress', data: { id, sent: sentCount, total: targetContacts.length } });
+          } else {
+            console.log(`❌ Failed to send message to ${contact.name || contact.id}`);
+            sentCount++; // Still increment to avoid infinite loop
+          }
+        } catch (error) {
+          console.log(`❌ Error sending message to ${contact.name || contact.id}:`, error);
+          sentCount++; // Still increment to avoid infinite loop
+        }
+
+        // Schedule next message with the specified interval
+        if (sentCount < targetContacts.length) {
+          console.log(`⏰ Waiting ${broadcastCampaign.interval} seconds before sending next message...`);
+          setTimeout(sendMessage, intervalMs);
+        } else {
+          // If we've sent all messages, trigger completion check
+          setTimeout(sendMessage, 100);
+        }
+      };
+
+      // Start sending messages immediately
+      setTimeout(sendMessage, 1000); // Start after 1 second
+
+      broadcast({ type: 'broadcast_started', data: updatedCampaign });
+      res.json({ 
+        success: true, 
+        message: `Campaign started. Will send ${targetContacts.length} messages with ${broadcastCampaign.interval}s interval.`,
+        campaign: updatedCampaign,
+        targetContacts: targetContacts.length
+      });
+
+    } catch (error) {
+      console.error('❌ Error executing broadcast:', error);
+      res.status(500).json({ error: "Failed to execute broadcast" });
     }
   });
 

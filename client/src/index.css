@@ -59,24 +59,6 @@
   --accent: hsl(158, 64%, 72%);
   --border: hsl(215, 16%, 17%);
   --input: hsl(215, 16%, 17%);
-}
-
-/* --- RESET GLOBAL SUGERIDO --- */
-html, body {
-  margin: 0;
-  padding: 0;
-  height: auto;
-  min-height: auto;
-}
-
-#main-content, .content, .page, .container {
-  min-height: auto !important;
-  height: auto !important;
-}
-
-footer {
-  margin-top: 0 !important;
-}
   --ring: hsl(158, 64%, 52%);
 }
 

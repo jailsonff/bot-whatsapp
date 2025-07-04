@@ -295,6 +295,29 @@ export class WhatsAppManager extends EventEmitter {
     }
   }
 
+  async sendBulkMessages(contacts: string[], message: string): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    for (const contact of contacts) {
+      try {
+        const result = await this.sendMessage(contact, message);
+        if (result) {
+          success++;
+        } else {
+          failed++;
+        }
+        
+        // Aguardar 1 segundo entre mensagens para evitar spam
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        failed++;
+      }
+    }
+
+    return { success, failed };
+  }
+
   getQRCode(): string | null {
     return this.qrCode;
   }

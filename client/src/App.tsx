@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Contacts from "./pages/Contacts";
 import Conversations from "./pages/Conversations";
 import Automation from "./pages/Automation";
+import Broadcasts from "./pages/Broadcasts";
 import Flows from "./pages/Flows";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/contacts" component={Contacts} />
       <Route path="/conversations" component={Conversations} />
       <Route path="/automation" component={Automation} />
+      <Route path="/broadcasts" component={Broadcasts} />
       <Route path="/flows" component={Flows} />
       <Route path="/reports" component={Reports} />
       <Route path="/settings" component={Settings} />

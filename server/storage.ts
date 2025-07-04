@@ -3,16 +3,21 @@ import {
   InsertContact, 
   Automation, 
   InsertAutomation, 
+  Broadcast, 
+  InsertBroadcast, 
   ConversationFlow, 
   InsertConversationFlow, 
-  Setting, 
-  InsertSetting 
+  WhatsappStatus, 
+  Settings, 
+  InsertSettings 
 } from "@shared/schema";
 
-export interface Storage {
+export interface IStorage {
   // Contacts
   getContacts(): Promise<Contact[]>;
   getContact(id: number): Promise<Contact | undefined>;
+  getContactByPhone(phone: string): Promise<Contact | undefined>;
+  getContactsByTag(tag: string): Promise<Contact[]>;
   createContact(contact: InsertContact): Promise<Contact>;
   updateContact(id: number, contact: Partial<Contact>): Promise<Contact>;
   deleteContact(id: number): Promise<void>;
@@ -20,42 +25,61 @@ export interface Storage {
   // Automations
   getAutomations(): Promise<Automation[]>;
   getAutomation(id: number): Promise<Automation | undefined>;
+  getActiveAutomations(): Promise<Automation[]>;
   createAutomation(automation: InsertAutomation): Promise<Automation>;
   updateAutomation(id: number, automation: Partial<Automation>): Promise<Automation>;
   deleteAutomation(id: number): Promise<void>;
 
-  // Conversation flows
+  // Broadcasts
+  getBroadcasts(): Promise<Broadcast[]>;
+  getBroadcast(id: number): Promise<Broadcast | undefined>;
+  createBroadcast(broadcast: InsertBroadcast): Promise<Broadcast>;
+  updateBroadcast(id: number, broadcast: Partial<Broadcast>): Promise<Broadcast>;
+  deleteBroadcast(id: number): Promise<void>;
+
+  // Conversation Flows
   getConversationFlows(): Promise<ConversationFlow[]>;
   getConversationFlow(id: number): Promise<ConversationFlow | undefined>;
+  getActiveConversationFlows(): Promise<ConversationFlow[]>;
   createConversationFlow(flow: InsertConversationFlow): Promise<ConversationFlow>;
   updateConversationFlow(id: number, flow: Partial<ConversationFlow>): Promise<ConversationFlow>;
   deleteConversationFlow(id: number): Promise<void>;
 
+  // WhatsApp Status
+  getWhatsappStatus(): Promise<WhatsappStatus>;
+  updateWhatsappStatus(status: Partial<WhatsappStatus>): Promise<WhatsappStatus>;
+
   // Settings
-  getSettings(): Promise<Setting[]>;
-  getSetting(id: number): Promise<Setting | undefined>;
-  createSetting(setting: InsertSetting): Promise<Setting>;
-  updateSetting(id: number, setting: Partial<Setting>): Promise<Setting>;
-  deleteSetting(id: number): Promise<void>;
+  getSettings(): Promise<Settings[]>;
+  getSetting(key: string): Promise<Settings | undefined>;
+  setSetting(setting: InsertSettings): Promise<Settings>;
+  updateSetting(key: string, value: string): Promise<Settings>;
 }
 
-export class MemoryStorage implements Storage {
-  private nextId = 1;
+export class MemStorage implements IStorage {
   private contacts: Map<number, Contact> = new Map();
   private automations: Map<number, Automation> = new Map();
+  private broadcasts: Map<number, Broadcast> = new Map();
   private conversationFlows: Map<number, ConversationFlow> = new Map();
-  private settings: Map<number, Setting> = new Map();
+  private whatsappStatus: WhatsappStatus = {
+    id: 1,
+    isConnected: false,
+    lastConnected: null,
+    autoReconnect: true
+  };
+  private settings: Map<string, Settings> = new Map();
+  private currentId = 1;
 
   constructor() {
     // Initialize default settings
-    this.settings.set(1, { id: 1, key: "defaultInterval", value: "5" });
-    this.settings.set(2, { id: 2, key: "maxMessagesPerHour", value: "100" });
-    this.settings.set(3, { id: 3, key: "darkMode", value: "true" });
-    this.settings.set(4, { id: 4, key: "exportFormat", value: "csv" });
-    this.settings.set(5, { id: 5, key: "includeTimestamps", value: "true" });
+    this.settings.set("defaultInterval", { id: 1, key: "defaultInterval", value: "5" });
+    this.settings.set("maxMessagesPerHour", { id: 2, key: "maxMessagesPerHour", value: "100" });
+    this.settings.set("darkMode", { id: 3, key: "darkMode", value: "true" });
+    this.settings.set("exportFormat", { id: 4, key: "exportFormat", value: "csv" });
+    this.settings.set("includeTimestamps", { id: 5, key: "includeTimestamps", value: "true" });
     
     // NOT using sample data - only real WhatsApp data
-    this.nextId = 1;
+    this.currentId = 1;
   }
   
 
@@ -69,8 +93,16 @@ export class MemoryStorage implements Storage {
     return this.contacts.get(id);
   }
 
+  async getContactByPhone(phone: string): Promise<Contact | undefined> {
+    return Array.from(this.contacts.values()).find(c => c.phone === phone);
+  }
+
+  async getContactsByTag(tag: string): Promise<Contact[]> {
+    return Array.from(this.contacts.values()).filter(c => c.tag === tag);
+  }
+
   async createContact(insertContact: InsertContact): Promise<Contact> {
-    const id = this.nextId++;
+    const id = this.currentId++;
     const contact: Contact = {
       ...insertContact,
       id,
@@ -102,8 +134,12 @@ export class MemoryStorage implements Storage {
     return this.automations.get(id);
   }
 
+  async getActiveAutomations(): Promise<Automation[]> {
+    return Array.from(this.automations.values()).filter(a => a.isActive);
+  }
+
   async createAutomation(insertAutomation: InsertAutomation): Promise<Automation> {
-    const id = this.nextId++;
+    const id = this.currentId++;
     const automation: Automation = {
       id,
       name: insertAutomation.name,
@@ -130,7 +166,57 @@ export class MemoryStorage implements Storage {
     this.automations.delete(id);
   }
 
-  // Conversation flows
+  // Broadcasts
+  async getBroadcasts(): Promise<Broadcast[]> {
+    return Array.from(this.broadcasts.values());
+  }
+
+  async getBroadcast(id: number): Promise<Broadcast | undefined> {
+    return this.broadcasts.get(id);
+  }
+
+  async createBroadcast(insertBroadcast: InsertBroadcast): Promise<Broadcast> {
+    const id = this.currentId++;
+    
+    console.log('🔧 Creating broadcast with data:', insertBroadcast);
+    console.log('📊 insertBroadcast.total:', insertBroadcast.total);
+    console.log('📊 typeof insertBroadcast.total:', typeof insertBroadcast.total);
+    
+    const totalValue = insertBroadcast.total ?? 0;
+    console.log('📊 totalValue after ?? 0:', totalValue);
+    
+    const broadcast: Broadcast = {
+      id,
+      name: insertBroadcast.name,
+      message: insertBroadcast.message,
+      targetTags: insertBroadcast.targetTags,
+      interval: insertBroadcast.interval ?? 5,
+      status: insertBroadcast.status ?? "draft",
+      sent: 0,
+      total: totalValue, // PRESERVAR o total enviado
+      scheduledFor: insertBroadcast.scheduledFor ? new Date(insertBroadcast.scheduledFor) : null
+    };
+    
+    console.log('✅ Broadcast created with total:', broadcast.total);
+    console.log('✅ Final broadcast object:', JSON.stringify(broadcast, null, 2));
+    
+    this.broadcasts.set(id, broadcast);
+    return broadcast;
+  }
+
+  async updateBroadcast(id: number, update: Partial<Broadcast>): Promise<Broadcast> {
+    const broadcast = this.broadcasts.get(id);
+    if (!broadcast) throw new Error("Broadcast not found");
+    const updated = { ...broadcast, ...update };
+    this.broadcasts.set(id, updated);
+    return updated;
+  }
+
+  async deleteBroadcast(id: number): Promise<void> {
+    this.broadcasts.delete(id);
+  }
+
+  // Conversation Flows
   async getConversationFlows(): Promise<ConversationFlow[]> {
     return Array.from(this.conversationFlows.values());
   }
@@ -139,8 +225,12 @@ export class MemoryStorage implements Storage {
     return this.conversationFlows.get(id);
   }
 
+  async getActiveConversationFlows(): Promise<ConversationFlow[]> {
+    return Array.from(this.conversationFlows.values()).filter(f => f.isActive);
+  }
+
   async createConversationFlow(insertFlow: InsertConversationFlow): Promise<ConversationFlow> {
-    const id = this.nextId++;
+    const id = this.currentId++;
     const flow: ConversationFlow = {
       id,
       name: insertFlow.name,
@@ -166,33 +256,39 @@ export class MemoryStorage implements Storage {
     this.conversationFlows.delete(id);
   }
 
+  // WhatsApp Status
+  async getWhatsappStatus(): Promise<WhatsappStatus> {
+    return this.whatsappStatus;
+  }
+
+  async updateWhatsappStatus(update: Partial<WhatsappStatus>): Promise<WhatsappStatus> {
+    this.whatsappStatus = { ...this.whatsappStatus, ...update };
+    return this.whatsappStatus;
+  }
+
   // Settings
-  async getSettings(): Promise<Setting[]> {
+  async getSettings(): Promise<Settings[]> {
     return Array.from(this.settings.values());
   }
 
-  async getSetting(id: number): Promise<Setting | undefined> {
-    return this.settings.get(id);
+  async getSetting(key: string): Promise<Settings | undefined> {
+    return this.settings.get(key);
   }
 
-  async createSetting(setting: InsertSetting): Promise<Setting> {
+  async setSetting(setting: InsertSettings): Promise<Settings> {
     const id = this.settings.size + 1;
-    const newSetting: Setting = { ...setting, id };
-    this.settings.set(id, newSetting);
+    const newSetting: Settings = { ...setting, id };
+    this.settings.set(setting.key, newSetting);
     return newSetting;
   }
 
-  async updateSetting(id: number, update: Partial<Setting>): Promise<Setting> {
-    const setting = this.settings.get(id);
+  async updateSetting(key: string, value: string): Promise<Settings> {
+    const setting = this.settings.get(key);
     if (!setting) throw new Error("Setting not found");
-    const updated = { ...setting, ...update };
-    this.settings.set(id, updated);
+    const updated = { ...setting, value };
+    this.settings.set(key, updated);
     return updated;
-  }
-
-  async deleteSetting(id: number): Promise<void> {
-    this.settings.delete(id);
   }
 }
 
-export const storage = new MemoryStorage();
+export const storage = new MemStorage();

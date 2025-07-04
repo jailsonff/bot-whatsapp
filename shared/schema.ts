@@ -20,6 +20,18 @@ export const automations = pgTable("automations", {
   executions: integer("executions").default(0),
 });
 
+export const broadcasts = pgTable("broadcasts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  message: text("message").notNull(),
+  targetTags: text("target_tags").array().notNull(),
+  interval: integer("interval").default(5), // seconds
+  scheduledFor: timestamp("scheduled_for"),
+  status: text("status").default("draft"), // draft, active, completed, paused
+  sent: integer("sent").default(0),
+  total: integer("total").default(0),
+});
+
 export const conversationFlows = pgTable("conversation_flows", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -43,6 +55,15 @@ export const settings = pgTable("settings", {
 
 export const insertContactSchema = createInsertSchema(contacts).omit({ id: true });
 export const insertAutomationSchema = createInsertSchema(automations).omit({ id: true, executions: true });
+export const insertBroadcastSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório"),
+  message: z.string().min(1, "Mensagem é obrigatória"),
+  targetTags: z.array(z.string()).min(1, "Selecione pelo menos uma categoria"),
+  interval: z.coerce.number().min(1).max(300).default(5),
+  scheduledFor: z.string().nullable().optional(),
+  status: z.string().default("draft"),
+  total: z.coerce.number().min(0, "Total deve ser maior ou igual a 0")
+});
 export const insertConversationFlowSchema = createInsertSchema(conversationFlows).omit({ id: true, executions: true });
 export const insertSettingsSchema = createInsertSchema(settings).omit({ id: true });
 
@@ -50,6 +71,8 @@ export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = z.infer<typeof insertContactSchema>;
 export type Automation = typeof automations.$inferSelect;
 export type InsertAutomation = z.infer<typeof insertAutomationSchema>;
+export type Broadcast = typeof broadcasts.$inferSelect;
+export type InsertBroadcast = z.infer<typeof insertBroadcastSchema>;
 export type ConversationFlow = typeof conversationFlows.$inferSelect;
 export type InsertConversationFlow = z.infer<typeof insertConversationFlowSchema>;
 export type WhatsappStatus = typeof whatsappStatus.$inferSelect;
